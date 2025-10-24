@@ -1,94 +1,146 @@
 package main
 
 import (
-  "encoding/json"
-  "log"
-  "math/rand"
-  "os"
-  "os/signal"
-  "syscall"
-  "time"
+	"encoding/json"
+	"fmt"
+	"log"
+	"math/rand"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
 
-  amqp "github.com/rabbitmq/amqp091-go"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/joho/godotenv"
 )
 
-type OrderCreated struct {
-  Event         string        `json:"event"`
-  Version       int           `json:"version"`
-  OrderId       string        `json:"orderId"`
-  UserId        string        `json:"userId"`
-  Items         []interface{} `json:"items"`
-  Total         float64       `json:"total"`
-  MessageId     string        `json:"messageId"`
-  CorrelationId string        `json:"correlationId"`
+type PaymentRequest struct {
+	OrderID     string  `json:"order_id"`
+	UserID      string  `json:"user_id"`
+	TotalAmount float64 `json:"total_amount"`
 }
 
-func failOnError(err error, msg string) {
-  if err != nil {
-    log.Fatalf("%s: %s", msg, err)
-  }
+type PaymentEvent struct {
+	OrderID string `json:"order_id"`
+	Status  string `json:"status"`
+}
+
+func envBool(key string, def bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	switch v {
+	case "1", "true", "TRUE", "True", "yes", "on", "ON":
+		return true
+	}
+	return false
+}
+
+func publishPayment(status string, event PaymentEvent) error {
+	if !envBool("PAYMENT_PUBLISH_ENABLED", false) {
+		log.Printf("[payment-service] publishing disabled; skipping publish for order %s", event.OrderID)
+		return nil
+	}
+	url := os.Getenv("PAYMENT_RABBIT_URL")
+	if url == "" {
+		url = "amqp://guest:guest@localhost:5672/"
+	}
+	conn, err := amqp.Dial(url)
+	if err != nil {
+		return fmt.Errorf("connect RabbitMQ: %w", err)
+	}
+	defer conn.Close()
+	ch, err := conn.Channel()
+	if err != nil {
+		return fmt.Errorf("open channel: %w", err)
+	}
+	defer ch.Close()
+	// Declare queues in case they don't exist (idempotent)
+	if _, err := ch.QueueDeclare("payment.succeeded", true, false, false, false, nil); err != nil {
+		return fmt.Errorf("declare queue succeeded: %w", err)
+	}
+	if _, err := ch.QueueDeclare("payment.failed", true, false, false, false, nil); err != nil {
+		return fmt.Errorf("declare queue failed: %w", err)
+	}
+	body, _ := json.Marshal(event)
+	if err := ch.Publish("", status, false, false, amqp.Publishing{
+		ContentType: "application/json",
+		Body:        body,
+	}); err != nil {
+		return fmt.Errorf("publish: %w", err)
+	}
+	return nil
+}
+
+func simulatePayment(total float64) string {
+	// 20% failure by default; configurable via PAYMENT_FAIL_PROB (0-100)
+	failProb := 20
+	if s := os.Getenv("PAYMENT_FAIL_PROB"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil && v >= 0 && v <= 100 {
+			failProb = v
+		}
+	}
+	if rand.Intn(100) < failProb {
+		return "payment.failed"
+	}
+	return "payment.succeeded"
 }
 
 func main() {
-  rand.Seed(time.Now().UnixNano())
-  url := os.Getenv("RABBIT_URL")
-  if url == "" { url = "amqp://user:pass@rabbitmq:5672/" }
+	// Load .env if present
+	_ = godotenv.Load()
+	rand.Seed(time.Now().UnixNano())
 
-  conn, err := amqp.Dial(url)
-  failOnError(err, "Failed to connect to RabbitMQ")
-  defer conn.Close()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	})
 
-  ch, err := conn.Channel()
-  failOnError(err, "Failed to open a channel")
-  defer ch.Close()
+	mux.HandleFunc("/payments", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var req PaymentRequest
+		dec := json.NewDecoder(r.Body)
+		if err := dec.Decode(&req); err != nil {
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			return
+		}
+		if req.OrderID == "" || req.UserID == "" || req.TotalAmount <= 0 {
+			http.Error(w, "order_id, user_id and positive total_amount required", http.StatusBadRequest)
+			return
+		}
 
-  err = ch.ExchangeDeclare("orders", "topic", true, false, false, false, nil)
-  failOnError(err, "Exchange declare")
+		// Simulate processing delay
+		time.Sleep(500 * time.Millisecond)
+		status := simulatePayment(req.TotalAmount)
+		evt := PaymentEvent{OrderID: req.OrderID, Status: status}
+		if err := publishPayment(status, evt); err != nil {
+			if envBool("PAYMENT_PUBLISH_STRICT", false) {
+				http.Error(w, "publish failed: "+err.Error(), http.StatusBadGateway)
+				return
+			}
+			log.Printf("[payment-service] publish failed (ignored): %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(evt)
+	})
 
-  q, err := ch.QueueDeclare("payment.queue", true, false, false, false, amqp.Table{"x-dead-letter-exchange": "orders.dlq"})
-  failOnError(err, "Queue declare")
-
-  err = ch.QueueBind(q.Name, "orders.order_created", "orders", false, nil)
-  failOnError(err, "Queue bind")
-
-  msgs, err := ch.Consume(q.Name, "", false, false, false, false, nil)
-  failOnError(err, "Consume")
-
-  // graceful shutdown
-  sigs := make(chan os.Signal, 1)
-  signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-  go func() {
-    for d := range msgs {
-      var evt OrderCreated
-      if err := json.Unmarshal(d.Body, &evt); err != nil {
-        log.Println("bad message", err)
-        d.Nack(false, false)
-        continue
-      }
-      log.Printf("[payment] received order %s total=%v", evt.OrderId, evt.Total)
-      time.Sleep(1500 * time.Millisecond) // simulate latency
-      success := rand.Float32() > 0.1
-      var out map[string]interface{}
-      routing := "orders.payment_succeeded"
-      if success {
-        out = map[string]interface{}{"event":"payment.succeeded","orderId":evt.OrderId,"amount":evt.Total,"txId":"tx-"+evt.MessageId,"messageId":"pay-"+evt.MessageId,"correlationId":evt.CorrelationId}
-      } else {
-        routing = "orders.payment_failed"
-        out = map[string]interface{}{"event":"payment.failed","orderId":evt.OrderId,"reason":"card_declined","messageId":"pay-"+evt.MessageId,"correlationId":evt.CorrelationId}
-      }
-      body, _ := json.Marshal(out)
-      err = ch.Publish("orders", routing, false, false, amqp.Publishing{ContentType:"application/json", DeliveryMode: 2, Body: body, MessageId: out["messageId"].(string), CorrelationId: evt.CorrelationId})
-      if err != nil {
-        log.Println("publish error", err)
-        d.Nack(false, true)
-        continue
-      }
-      d.Ack(false)
-      log.Printf("[payment] published %s for order %s", out["event"], evt.OrderId)
-    }
-  }()
-
-  <-sigs
-  log.Println("shutting down payment")
+	host := os.Getenv("HOST")
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	addr := host + ":" + port
+	log.Printf("payment-service listening on http://%s", addr)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		log.Fatalf("server error: %v", err)
+	}
 }
