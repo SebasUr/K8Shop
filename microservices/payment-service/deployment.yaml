@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+      - name: payment-service
+        image: your-dockerhub-username/payment-service:latest
+        env:
+        - name: RABBITMQ_HOST
+          value: "rabbitmq"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+spec:
+  selector:
+    app: payment-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP
