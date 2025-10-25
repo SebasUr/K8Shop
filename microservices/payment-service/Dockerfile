@@ -7,7 +7,7 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 # Copy source and build
 COPY . .
-RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 GOOS=linux go build -o /payment-service
+RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 GOOS=linux go build -o /payment-service ./cmd/payment-service
 
 FROM alpine:3.20
 WORKDIR /app

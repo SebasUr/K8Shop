@@ -8,10 +8,10 @@ FastAPI service that simulates inventory updates. Optionally publishes `inventor
 cd microservices/inventory-service
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
-./.venv/bin/python main.py
+./.venv/bin/python src/main.py
 ```
 
-By default it binds to http://127.0.0.1:8090 and publishing is disabled.
+By default it binds to http://127.0.0.1:8080 and publishing is disabled.
 
 ### Endpoints
 

@@ -10,7 +10,7 @@ Minimal Go service to simulate payments via HTTP. Optionally publishes results t
 
 ```bash
 cd microservices/payment-service
-go run .
+go run ./cmd/payment-service
 ```
 
 It will start on http://127.0.0.1:8080.

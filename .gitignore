@@ -1,0 +1,40 @@
+# General
+.DS_Store
+*.log
+logs/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Go
+bin/
+build/
+coverage.out
+
+# Editor/OS
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker
+.dockerignore
+
+# Env files (keep committed service .envs if already tracked)
+.env.local
+.env.*.local
