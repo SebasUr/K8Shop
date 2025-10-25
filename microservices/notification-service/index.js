@@ -33,38 +33,39 @@ async function startConsumer() {
 		console.log('[notification-service] consumer disabled (NOTIF_CONSUME_ENABLED=0)')
 		return
 	}
-	try {
-		amqpConnection = await amqp.connect(RABBIT_URL)
-		amqpChannel = await amqpConnection.createChannel()
+		try {
+			amqpConnection = await amqp.connect(RABBIT_URL)
+			amqpChannel = await amqpConnection.createChannel()
 
-		await amqpChannel.assertQueue('payment.succeeded', { durable: true })
-		await amqpChannel.assertQueue('payment.failed', { durable: true })
+			// Topic exchange and a dedicated queue bound to payment events
+			const EXCHANGE = process.env.NOTIF_EXCHANGE || 'orders'
+			await amqpChannel.assertExchange(EXCHANGE, 'topic', { durable: true })
+			const queueName = process.env.NOTIF_QUEUE_NAME || 'notification-service'
+			await amqpChannel.assertQueue(queueName, { durable: true })
+			await amqpChannel.bindQueue(queueName, EXCHANGE, 'orders.payment_succeeded')
+			await amqpChannel.bindQueue(queueName, EXCHANGE, 'orders.payment_failed')
 
-		console.log('📢 Notification service waiting for payment events...')
+			console.log('📢 Notification service waiting for payment events...')
 
-		amqpChannel.consume('payment.succeeded', async (msg) => {
+			amqpChannel.consume(queueName, async (msg) => {
 			try {
-				const data = JSON.parse(msg.content.toString())
-				console.log(`✅ Order ${data.order_id}: Payment succeeded. Sending confirmation email...`)
-				await simulateSend('success', data.order_id)
-				amqpChannel.ack(msg)
+					const data = JSON.parse(msg.content.toString())
+					const rk = msg.fields.routingKey || ''
+					if (rk.endsWith('payment_succeeded')) {
+						console.log(`✅ Order ${data.order_id}: Payment succeeded. Sending confirmation email...`)
+						await simulateSend('success', data.order_id)
+					} else if (rk.endsWith('payment_failed')) {
+						console.log(`❌ Order ${data.order_id}: Payment failed. Sending failure alert...`)
+						await simulateSend('failure', data.order_id)
+					} else {
+						console.log('Ignoring message with routing key:', rk)
+					}
+					amqpChannel.ack(msg)
 			} catch (e) {
-				console.error('Error handling payment.succeeded:', e)
-				amqpChannel.nack(msg, false, false)
+					console.error('Error handling notification message:', e)
+					amqpChannel.nack(msg, false, false)
 			}
-		}, { noAck: false })
-
-		amqpChannel.consume('payment.failed', async (msg) => {
-			try {
-				const data = JSON.parse(msg.content.toString())
-				console.log(`❌ Order ${data.order_id}: Payment failed. Sending failure alert...`)
-				await simulateSend('failure', data.order_id)
-				amqpChannel.ack(msg)
-			} catch (e) {
-				console.error('Error handling payment.failed:', e)
-				amqpChannel.nack(msg, false, false)
-			}
-		}, { noAck: false })
+			}, { noAck: false })
 
 		amqpConnection.on('close', () => {
 			console.error('[notification-service] AMQP connection closed')

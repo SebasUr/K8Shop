@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/joho/godotenv"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type PaymentRequest struct {
@@ -56,15 +56,24 @@ func publishPayment(status string, event PaymentEvent) error {
 		return fmt.Errorf("open channel: %w", err)
 	}
 	defer ch.Close()
-	// Declare queues in case they don't exist (idempotent)
-	if _, err := ch.QueueDeclare("payment.succeeded", true, false, false, false, nil); err != nil {
-		return fmt.Errorf("declare queue succeeded: %w", err)
+	// Use topic exchange 'orders' and routing keys 'orders.payment_succeeded|failed'
+	if err := ch.ExchangeDeclare("orders", "topic", true, false, false, false, nil); err != nil {
+		return fmt.Errorf("declare exchange: %w", err)
 	}
-	if _, err := ch.QueueDeclare("payment.failed", true, false, false, false, nil); err != nil {
-		return fmt.Errorf("declare queue failed: %w", err)
+	routingKey := status
+	switch status {
+	case "payment.succeeded":
+		routingKey = "orders.payment_succeeded"
+	case "payment.failed":
+		routingKey = "orders.payment_failed"
+	default:
+		// allow passing full routing key already
+		if status != "orders.payment_succeeded" && status != "orders.payment_failed" {
+			routingKey = "orders." + status
+		}
 	}
 	body, _ := json.Marshal(event)
-	if err := ch.Publish("", status, false, false, amqp.Publishing{
+	if err := ch.Publish("orders", routingKey, false, false, amqp.Publishing{
 		ContentType: "application/json",
 		Body:        body,
 	}); err != nil {
