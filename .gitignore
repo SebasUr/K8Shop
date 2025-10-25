@@ -25,6 +25,8 @@ env/
 bin/
 build/
 coverage.out
+microservices/payment-service/payment
+microservices/payment-service/payment-service
 
 # Editor/OS
 .idea/
