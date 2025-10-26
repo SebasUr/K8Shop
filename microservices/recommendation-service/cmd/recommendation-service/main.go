@@ -120,6 +120,7 @@ func main() {
 
 	host := getenv("HOST", "127.0.0.1")
 	port := getenv("PORT", "8080")
+	dbURL := os.Getenv("DATABASE_URL")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthHandler)
@@ -132,6 +133,11 @@ func main() {
 	}
 
 	log.Printf("recommendation-service listening on %s:%s", host, port)
+	if dbURL != "" {
+		log.Printf("recommendation-service DATABASE_URL configured")
+	} else {
+		log.Printf("recommendation-service DATABASE_URL not set (running without DB)")
+	}
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server error: %v", err)
 	}

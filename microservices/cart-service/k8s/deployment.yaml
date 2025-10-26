@@ -27,6 +27,11 @@ spec:
           value: "1"
         - name: CART_REDIS_URL
           value: "redis://redis:6379/0"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: rds-credentials
+              key: database_url
         ports:
         - containerPort: 8080
           name: http

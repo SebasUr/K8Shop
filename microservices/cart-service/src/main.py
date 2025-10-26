@@ -29,6 +29,7 @@ HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "8080"))
 CART_USE_REDIS = getenv_bool("CART_USE_REDIS", False)
 CART_REDIS_URL = os.getenv("CART_REDIS_URL", "redis://localhost:6379/0")
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 
 class AddItemRequest(BaseModel):
@@ -84,7 +85,7 @@ def _cart_to_response(user_id: str) -> CartResponse:
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    return {"ok": True, "db": bool(DATABASE_URL)}
 
 
 @app.get("/cart/{user_id}", response_model=CartResponse)

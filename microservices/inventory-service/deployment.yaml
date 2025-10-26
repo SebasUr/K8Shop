@@ -18,6 +18,11 @@ spec:
         env:
         - name: RABBITMQ_HOST
           value: "rabbitmq"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: rds-credentials
+              key: database_url
 ---
 apiVersion: v1
 kind: Service

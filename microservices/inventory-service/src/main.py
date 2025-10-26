@@ -9,6 +9,7 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 app = FastAPI()
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 # Env flags to control optional RabbitMQ publishing
 PUBLISH_ENABLED = os.getenv("INVENTORY_PUBLISH_ENABLED", "0").lower() in ("1", "true", "yes", "on")
@@ -55,7 +56,7 @@ def publish_inventory_updated(event: dict):
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    return {"ok": True, "db": bool(DATABASE_URL)}
 
 
 @app.post("/inventory/apply", response_model=InventoryResp)

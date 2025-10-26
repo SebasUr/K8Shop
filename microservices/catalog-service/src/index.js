@@ -10,6 +10,7 @@ app.use(cors())
 
 const HOST = process.env.HOST || '127.0.0.1'
 const PORT = parseInt(process.env.PORT || '8080', 10)
+const DATABASE_URL = process.env.DATABASE_URL || ''
 
 // In-memory catalog for demo/local testing
 const CATALOG = [
@@ -54,6 +55,11 @@ app.get('/catalog/:id', (req, res) => {
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`[catalog-service] listening on http://${HOST}:${PORT}`)
+  if (DATABASE_URL) {
+    console.log('[catalog-service] DATABASE_URL configured')
+  } else {
+    console.log('[catalog-service] DATABASE_URL not set (running without DB)')
+  }
 })
 
 function shutdown() {

@@ -8,6 +8,7 @@ import uuid, os, datetime
 load_dotenv(find_dotenv())
 
 app = FastAPI()
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 class Item(BaseModel):
     sku: str
@@ -19,7 +20,7 @@ class OrderReq(BaseModel):
     items: list[Item]
 
 @app.get("/healthz")
-def healthz(): return {"ok": True}
+def healthz(): return {"ok": True, "db": bool(DATABASE_URL)}
 
 @app.post("/orders")
 def create_order(req: OrderReq):

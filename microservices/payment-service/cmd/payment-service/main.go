@@ -100,6 +100,11 @@ func main() {
 	// Load .env if present
 	_ = godotenv.Load()
 	rand.Seed(time.Now().UnixNano())
+	if db := os.Getenv("DATABASE_URL"); db != "" {
+		log.Printf("payment-service DATABASE_URL configured")
+	} else {
+		log.Printf("payment-service DATABASE_URL not set (running without DB)")
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {

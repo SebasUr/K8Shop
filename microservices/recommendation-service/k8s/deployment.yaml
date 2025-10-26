@@ -27,6 +27,11 @@ spec:
           value: "popular"
         - name: REC_LIMIT
           value: "5"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: rds-credentials
+              key: database_url
         ports:
         - containerPort: 8080
           name: http
