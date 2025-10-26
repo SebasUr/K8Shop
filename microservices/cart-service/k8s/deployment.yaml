@@ -27,12 +27,6 @@ spec:
           value: "1"
         - name: CART_REDIS_URL
           value: "redis://redis:6379/0"
-        - name: CART_PUBLISH_ENABLED
-          value: "0"
-        - name: RABBIT_URL
-          value: "amqp://guest:guest@rabbitmq:5672/"
-        - name: ORDERS_EXCHANGE
-          value: "orders"
         ports:
         - containerPort: 8080
           name: http

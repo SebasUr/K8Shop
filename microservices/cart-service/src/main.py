@@ -1,5 +1,4 @@
 import os
-import uuid
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -13,11 +12,7 @@ try:
 except Exception:  # pragma: no cover
     redis = None
 
-try:
-    from .publisher import publish_cart_checked_out
-except Exception:  # pragma: no cover
-    def publish_cart_checked_out(event: dict):
-        print("[cart-service] publisher not available; skipping publish")
+# No RabbitMQ publisher for cart-service (synchronous only)
 
 
 load_dotenv()
@@ -118,22 +113,7 @@ def delete_item(user_id: str, product_id: str):
 @app.post("/cart/{user_id}/checkout", response_model=CartResponse)
 def checkout(user_id: str):
     cart = _cart_to_response(user_id)
-    # publish event (optional)
-    try:
-        event = {
-            "messageId": str(uuid.uuid4()),
-            "correlationId": str(uuid.uuid4()),
-            "type": "cart.checked_out",
-            "userId": user_id,
-            "itemCount": cart.itemCount,
-            "subtotal": cart.subtotal,
-            "items": [i.dict() for i in cart.items],
-        }
-        publish_cart_checked_out(event)
-    except Exception as e:
-        # non-strict mode: just log to stdout
-        print("[cart-service] checkout publish error:", e)
-    # clear cart after checkout
+    # synchronous service: just clear the cart and return the snapshot
     store.clear(user_id)
     return cart
 

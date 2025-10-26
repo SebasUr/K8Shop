@@ -8,7 +8,7 @@ FastAPI microservice for shopping cart operations with Redis backend (in-memory 
   - `POST /cart/{userId}/items` body: `{ productId, quantity, price }`
   - `PUT /cart/{userId}/items/{productId}` body: `{ quantity }`
   - `DELETE /cart/{userId}/items/{productId}`
-  - `POST /cart/{userId}/checkout` (publishes optional event and clears cart)
+  - `POST /cart/{userId}/checkout` (limpia el carrito y devuelve el snapshot)
 
 ## Env vars
 
@@ -16,11 +16,7 @@ FastAPI microservice for shopping cart operations with Redis backend (in-memory 
 - `PORT` (default `8080`)
 - `CART_USE_REDIS` (default `0`)
 - `CART_REDIS_URL` (default `redis://localhost:6379/0`)
-- Optional RabbitMQ publish on checkout:
-  - `CART_PUBLISH_ENABLED` (default `0`)
-  - `CART_PUBLISH_STRICT` (default `0`)
-  - `RABBIT_URL` (default `amqp://guest:guest@localhost:5672/`)
-  - `ORDERS_EXCHANGE` (default `orders`)
+- No usa RabbitMQ (servicio síncrono)
 
 A sample `.env` is included.
 
