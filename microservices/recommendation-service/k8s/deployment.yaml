@@ -27,6 +27,8 @@ spec:
           value: "popular"
         - name: REC_LIMIT
           value: "5"
+        - name: CATALOG_GRPC_ADDR
+          value: "catalog-service:50051"
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:

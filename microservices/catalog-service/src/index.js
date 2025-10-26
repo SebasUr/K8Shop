@@ -3,6 +3,9 @@ dotenv.config()
 
 import express from 'express'
 import cors from 'cors'
+import * as grpc from '@grpc/grpc-js'
+import * as protoLoader from '@grpc/proto-loader'
+import path from 'node:path'
 
 const app = express()
 app.use(express.json())
@@ -11,6 +14,8 @@ app.use(cors())
 const HOST = process.env.HOST || '127.0.0.1'
 const PORT = parseInt(process.env.PORT || '8080', 10)
 const DATABASE_URL = process.env.DATABASE_URL || ''
+const GRPC_HOST = process.env.CATALOG_GRPC_HOST || '0.0.0.0'
+const GRPC_PORT = parseInt(process.env.CATALOG_GRPC_PORT || '50051', 10)
 
 // In-memory catalog for demo/local testing
 const CATALOG = [
@@ -68,3 +73,44 @@ function shutdown() {
 }
 process.on('SIGTERM', shutdown)
 process.on('SIGINT', shutdown)
+
+// ----- gRPC server -----
+const PROTO_PATH = path.resolve(__dirname, '..', 'proto', 'catalog.proto')
+const pkgDef = protoLoader.loadSync(PROTO_PATH, { keepCase: true, longs: String, enums: String, arrays: true })
+const proto = grpc.loadPackageDefinition(pkgDef)
+
+function startGrpcServer() {
+  const svc = proto['catalog']['v1']['CatalogService']
+  const impl = {
+    GetProduct: (call, callback) => {
+      const id = String(call.request.id || '')
+      const item = CATALOG.find(p => p.id === id || p.sku === id)
+      if (!item) return callback({ code: grpc.status.NOT_FOUND, message: 'not found' })
+      callback(null, item)
+    },
+    ListProducts: (call, callback) => {
+      const { q = '', tag = '', min, max } = call.request || {}
+      const ql = String(q || '').toLowerCase()
+      const tagl = String(tag || '').toLowerCase()
+      let result = CATALOG
+      if (ql) result = result.filter(p => p.title.toLowerCase().includes(ql) || p.sku.toLowerCase().includes(ql))
+      if (tagl) result = result.filter(p => (p.tags || []).map(t => t.toLowerCase()).includes(tagl))
+      if (typeof min === 'number') result = result.filter(p => p.price >= min)
+      if (typeof max === 'number') result = result.filter(p => p.price <= max)
+      callback(null, { items: result })
+    },
+  }
+  const server = new grpc.Server()
+  server.addService(svc.service, impl)
+  const addr = `${GRPC_HOST}:${GRPC_PORT}`
+  server.bindAsync(addr, grpc.ServerCredentials.createInsecure(), (err) => {
+    if (err) {
+      console.error('[catalog-service] gRPC bind error:', err)
+      return
+    }
+    server.start()
+    console.log(`[catalog-service] gRPC listening on ${addr}`)
+  })
+}
+
+startGrpcServer()

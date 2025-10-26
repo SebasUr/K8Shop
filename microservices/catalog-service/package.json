@@ -11,6 +11,8 @@
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "@grpc/grpc-js": "^1.10.8",
+    "@grpc/proto-loader": "^0.7.13"
   }
 }
