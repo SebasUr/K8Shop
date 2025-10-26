@@ -21,8 +21,13 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: rds-credentials
+              name: rds-credentials-payment
               key: database_url
+        - name: DB_SCHEMA
+          valueFrom:
+            secretKeyRef:
+              name: rds-credentials-payment
+              key: schema
 ---
 apiVersion: v1
 kind: Service

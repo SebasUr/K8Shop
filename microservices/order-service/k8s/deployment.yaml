@@ -16,6 +16,11 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: rds-credentials
+              name: rds-credentials-order
               key: database_url
+        - name: DB_SCHEMA
+          valueFrom:
+            secretKeyRef:
+              name: rds-credentials-order
+              key: schema
         ports: [{ containerPort: 8000 }]

@@ -30,8 +30,13 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: rds-credentials
+              name: rds-credentials-cart
               key: database_url
+        - name: DB_SCHEMA
+          valueFrom:
+            secretKeyRef:
+              name: rds-credentials-cart
+              key: schema
         ports:
         - containerPort: 8080
           name: http
