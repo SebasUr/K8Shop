@@ -43,8 +43,8 @@ spec:
         - containerPort: 50051
           name: grpc
         envFrom:
-    - secretRef:
-      name: recommendation-service-db
+        - secretRef:
+            name: recommendation-service-db
         - configMapRef:
             name: recommendation-service-config
         readinessProbe:

@@ -22,34 +22,51 @@ variable "region" {
   description = "AWS region where all resources are provisioned."
 }
 
-variable "cluster_name" {
+variable "ubuntu_ami_id" {
   type        = string
-  default     = "bookstore-eks"
-  description = "Friendly name for the EKS cluster."
+  default     = "ami-0360c520857e3138f"
+  description = "Ubuntu Server 22.04 LTS AMI to use for EC2 instances. Override if the default ID is not available in the target region."
 }
 
-variable "node_type" {
+variable "ssh_key_name" {
+  type        = string
+  description = "Existing EC2 key pair name used for SSH access to k3s nodes."
+}
+
+variable "admin_cidr_blocks" {
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+  description = "CIDR blocks allowed to reach the k3s control plane via SSH."
+}
+
+variable "k3s_server_instance_type" {
+  type        = string
+  default     = "t3.medium"
+  description = "Instance type for the k3s control-plane node."
+}
+
+variable "k3s_worker_instance_type" {
   type        = string
   default     = "t3.large"
-  description = "Instance type used by the EKS managed node group."
+  description = "Instance type for the k3s worker nodes."
 }
 
-variable "desired" {
+variable "k3s_worker_count" {
   type        = number
-  default     = 3
-  description = "Desired number of worker nodes for the EKS node group."
+  default     = 2
+  description = "Number of k3s worker nodes to provision."
 }
 
-variable "min" {
-  type        = number
-  default     = 3
-  description = "Minimum number of worker nodes for the EKS node group."
+variable "bastion_instance_type" {
+  type        = string
+  default     = "t3.micro"
+  description = "Instance type for the bastion host used to SSH into private nodes."
 }
 
-variable "max" {
-  type        = number
-  default     = 9
-  description = "Maximum number of worker nodes for the EKS node group."
+variable "kubeconfig_path" {
+  type        = string
+  default     = ""
+  description = "Local path to the kubeconfig file retrieved from the k3s server. Required before running the bootstrap step."
 }
 
 variable "db_user" {

@@ -1,8 +1,8 @@
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "5.1.2"
-  name   = "bookstore-vpc"
-  cidr   = "10.0.0.0/16"
+  name    = "bookstore-vpc"
+  cidr    = "10.0.0.0/16"
 
   azs             = ["${var.region}a", "${var.region}b", "${var.region}c"]
   public_subnets  = ["10.0.10.0/24", "10.0.11.0/24", "10.0.12.0/24"]

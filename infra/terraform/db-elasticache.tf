@@ -24,15 +24,15 @@ resource "aws_elasticache_subnet_group" "redis" {
 }
 
 resource "aws_elasticache_replication_group" "redis" {
-  replication_group_id = "bookstore-redis"
-  description          = "Redis for cart/idempotency cache"
-  engine                        = "redis"
-  engine_version                = "7.1"
-  node_type                     = "cache.t3.micro" # demo
-  num_cache_clusters            = 2                # multi-AZ
-  automatic_failover_enabled    = true
-  transit_encryption_enabled    = true
-  at_rest_encryption_enabled    = true
-  subnet_group_name             = aws_elasticache_subnet_group.redis.name
-  security_group_ids            = [aws_security_group.redis.id]
+  replication_group_id       = "bookstore-redis"
+  description                = "Redis for cart/idempotency cache"
+  engine                     = "redis"
+  engine_version             = "7.1"
+  node_type                  = "cache.t3.micro" # demo
+  num_cache_clusters         = 2                # multi-AZ
+  automatic_failover_enabled = true
+  transit_encryption_enabled = true
+  at_rest_encryption_enabled = true
+  subnet_group_name          = aws_elasticache_subnet_group.redis.name
+  security_group_ids         = [aws_security_group.redis.id]
 }

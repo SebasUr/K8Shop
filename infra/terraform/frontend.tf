@@ -1,24 +1,3 @@
-data "aws_lb" "catalog" {
-  depends_on = [null_resource.k8s_bootstrap]
-  tags = {
-    "kubernetes.io/service-name" = "bookstore/catalog"
-  }
-}
-
-data "aws_lb" "cart" {
-  depends_on = [null_resource.k8s_bootstrap]
-  tags = {
-    "kubernetes.io/service-name" = "bookstore/cart"
-  }
-}
-
-data "aws_lb" "order" {
-  depends_on = [null_resource.k8s_bootstrap]
-  tags = {
-    "kubernetes.io/service-name" = "bookstore/order"
-  }
-}
-
 resource "aws_security_group" "alb" {
   name   = "bookstore-alb-sg"
   vpc_id = module.vpc.vpc_id
@@ -57,31 +36,25 @@ resource "aws_security_group" "fe" {
   }
 }
 
-data "aws_ami" "amazon_linux" {
-  owners      = ["amazon"]
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-x86_64"]
-  }
-}
-
 locals {
-  catalog_api_base = format("http://%s", data.aws_lb.catalog.dns_name)
-  cart_api_base    = format("http://%s", data.aws_lb.cart.dns_name)
-  order_api_base   = format("http://%s", data.aws_lb.order.dns_name)
+  catalog_api_base = format("http://%s", aws_lb.catalog_internal.dns_name)
+  cart_api_base    = format("http://%s", aws_lb.cart_internal.dns_name)
+  order_api_base   = format("http://%s", aws_lb.order_internal.dns_name)
 }
 
 resource "aws_launch_template" "fe" {
   name_prefix   = "bookstore-fe-"
-  image_id      = data.aws_ami.amazon_linux.id
+  image_id      = var.ubuntu_ami_id
   instance_type = "t3.micro"
   user_data = base64encode(<<EOF
                 #!/bin/bash
         set -euo pipefail
 
-  dnf install -y nginx git nodejs npm
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y nginx git curl ca-certificates
+  curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+  apt-get install -y nodejs
                 cat >/etc/nginx/nginx.conf <<'NGINX'
                 events {}
                 http {
@@ -121,7 +94,7 @@ ENV
         npm run build
 
         cp -r dist/* /usr/share/nginx/html/
-                systemctl enable --now nginx
+    systemctl enable --now nginx
                 EOF
   )
   vpc_security_group_ids = [aws_security_group.fe.id]

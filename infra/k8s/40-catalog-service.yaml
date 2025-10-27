@@ -43,8 +43,8 @@ spec:
         - containerPort: 50051
           name: grpc
         envFrom:
-    - secretRef:
-      name: catalog-service-db
+        - secretRef:
+            name: catalog-service-db
         - configMapRef:
             name: catalog-service-config
         readinessProbe:

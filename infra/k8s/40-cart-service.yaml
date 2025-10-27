@@ -41,8 +41,8 @@ spec:
         - containerPort: 8080
           name: http
         envFrom:
-    - secretRef:
-      name: cart-service-db
+        - secretRef:
+            name: cart-service-db
         - configMapRef:
             name: runtime-config
         - configMapRef:

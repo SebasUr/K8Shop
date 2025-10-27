@@ -1,6 +1,8 @@
 resource "null_resource" "k8s_bootstrap" {
+  count = var.kubeconfig_path == "" ? 0 : 1
+
   depends_on = [
- #   module.eks,
+    null_resource.wait_for_k3s,
     aws_db_instance.postgres,
     aws_elasticache_replication_group.redis,
     aws_dynamodb_table.inventory,
@@ -16,12 +18,20 @@ resource "null_resource" "k8s_bootstrap" {
     db_password_sum = sha256(nonsensitive(var.db_password))
     ddb_table       = aws_dynamodb_table.inventory.name
     db_urls_hash    = sha256(jsonencode(local.service_db_urls))
+    kubeconfig_path = var.kubeconfig_path
   }
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     command     = <<-EOT
       set -euo pipefail
+
+      if [[ -z "${var.kubeconfig_path}" ]]; then
+        echo "kubeconfig_path variable is empty; export it before running this step" >&2
+        exit 1
+      fi
+
+      export KUBECONFIG="${var.kubeconfig_path}"
 
       kubectl get ns bookstore >/dev/null 2>&1 || kubectl create ns bookstore
 
