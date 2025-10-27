@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,7 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jhump/protoreflect/desc/protoparse"
+	"github.com/jhump/protoreflect/dynamic"
+	"github.com/jhump/protoreflect/dynamic/grpcdynamic"
 	"github.com/joho/godotenv"
+	"google.golang.org/grpc"
 )
 
 type healthResponse struct {
@@ -65,37 +70,50 @@ func recommendationsHandler(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("userId")
 
 	recs := make([]recItem, 0, limit)
-	switch strategy {
-	case "related":
-		// Deterministic related recommendations based on productId seed
-		seed := int64(42)
-		if productID != "" {
-			for _, b := range []byte(productID) {
+
+	// If a Catalog gRPC address is configured, try using it to fetch products
+	// Fallback to deterministic local generation if unavailable.
+	grpcAddr := os.Getenv("CATALOG_GRPC_ADDR") // e.g., "catalog-service:50051" or "127.0.0.1:50051"
+	if grpcAddr != "" {
+		fetched, err := fetchRecommendationsViaGRPC(grpcAddr, strategy, productID, limit)
+		if err == nil && len(fetched) > 0 {
+			recs = fetched
+		} else if err != nil {
+			log.Printf("[recommendation] gRPC fetch error (fallback to local): %v", err)
+		}
+	}
+
+	if len(recs) == 0 {
+		switch strategy {
+		case "related":
+			seed := int64(42)
+			if productID != "" {
+				for _, b := range []byte(productID) {
+					seed += int64(b)
+				}
+			}
+			rng := rand.New(rand.NewSource(seed))
+			for i := 0; i < limit; i++ {
+				recs = append(recs, recItem{
+					ID:    fmt.Sprintf("p%04d", rng.Intn(9999)),
+					Score: 0.6 + rng.Float64()*0.4,
+				})
+			}
+		default:
+			daySeed := time.Now().UTC().Format("2006-01-02")
+			var seed int64 = 0
+			for _, b := range []byte(daySeed) {
 				seed += int64(b)
 			}
+			rng := rand.New(rand.NewSource(seed))
+			for i := 0; i < limit; i++ {
+				recs = append(recs, recItem{
+					ID:    fmt.Sprintf("pop%03d", rng.Intn(1000)),
+					Score: 0.5 + rng.Float64()*0.5,
+				})
+			}
+			strategy = "popular"
 		}
-		rng := rand.New(rand.NewSource(seed))
-		for i := 0; i < limit; i++ {
-			recs = append(recs, recItem{
-				ID:    fmt.Sprintf("p%04d", rng.Intn(9999)),
-				Score: 0.6 + rng.Float64()*0.4,
-			})
-		}
-	default:
-		// Popular strategy: pseudo-static list with stable randomness per day
-		daySeed := time.Now().UTC().Format("2006-01-02")
-		var seed int64 = 0
-		for _, b := range []byte(daySeed) {
-			seed += int64(b)
-		}
-		rng := rand.New(rand.NewSource(seed))
-		for i := 0; i < limit; i++ {
-			recs = append(recs, recItem{
-				ID:    fmt.Sprintf("pop%03d", rng.Intn(1000)),
-				Score: 0.5 + rng.Float64()*0.5,
-			})
-		}
-		strategy = "popular"
 	}
 
 	resp := recResponse{
@@ -107,6 +125,99 @@ func recommendationsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func fetchRecommendationsViaGRPC(addr, strategy, productID string, limit int) ([]recItem, error) {
+	conn, err := grpc.Dial(addr, grpc.WithInsecure())
+	if err != nil {
+		return nil, fmt.Errorf("dial: %w", err)
+	}
+	defer conn.Close()
+
+	// Parse proto at runtime
+	parser := protoparse.Parser{
+		ImportPaths: []string{"./proto"},
+	}
+	fds, err := parser.ParseFiles("catalog.proto")
+	if err != nil || len(fds) == 0 {
+		return nil, fmt.Errorf("parse proto: %w", err)
+	}
+	fd := fds[0]
+	svc := fd.FindService("catalog.v1.CatalogService")
+	if svc == nil {
+		return nil, fmt.Errorf("service not found in proto")
+	}
+	stub := grpcdynamic.NewStub(conn)
+
+	// Helper to call ListProducts(tag)
+	callList := func(tag string) ([]map[string]interface{}, error) {
+		m := dynamic.NewMessage(svc.FindMethodByName("ListProducts").GetInputType())
+		if tag != "" {
+			_ = m.TrySetFieldByName("tag", tag)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		resp, err := stub.InvokeRpc(ctx, svc.FindMethodByName("ListProducts"), m)
+		if err != nil {
+			return nil, err
+		}
+		// Extract items list from dynamic message
+		dm, ok := resp.(*dynamic.Message)
+		if !ok {
+			return nil, fmt.Errorf("unexpected response type from ListProducts")
+		}
+		itemsVal, _ := dm.TryGetFieldByName("items")
+		items, _ := itemsVal.([]interface{})
+		out := make([]map[string]interface{}, 0, len(items))
+		for _, it := range items {
+			if dm, ok := it.(*dynamic.Message); ok {
+				js, _ := dm.MarshalJSON()
+				var tmp map[string]interface{}
+				_ = json.Unmarshal(js, &tmp)
+				out = append(out, tmp)
+			}
+		}
+		return out, nil
+	}
+
+	var list []map[string]interface{}
+	switch strategy {
+	case "related":
+		// get product to infer a tag
+		if productID != "" {
+			m := dynamic.NewMessage(svc.FindMethodByName("GetProduct").GetInputType())
+			_ = m.TrySetFieldByName("id", productID)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			resp, err := stub.InvokeRpc(ctx, svc.FindMethodByName("GetProduct"), m)
+			if err == nil {
+				pdm, ok := resp.(*dynamic.Message)
+				if !ok {
+					break
+				}
+				js, _ := pdm.MarshalJSON()
+				var prod struct {
+					Tags []string `json:"tags"`
+				}
+				_ = json.Unmarshal(js, &prod)
+				tag := ""
+				if len(prod.Tags) > 0 {
+					tag = prod.Tags[0]
+				}
+				list, _ = callList(tag)
+			}
+		}
+	default:
+		list, _ = callList("")
+	}
+
+	// Select up to limit items and score
+	recs := make([]recItem, 0, limit)
+	for i := 0; i < len(list) && len(recs) < limit; i++ {
+		id := fmt.Sprintf("%v", list[i]["id"])
+		recs = append(recs, recItem{ID: id, Score: 0.75})
+	}
+	return recs, nil
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,23 @@
+# k8s/20-networkpolicies-allow.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-workers-to-rabbit, namespace: bookstore }
+spec:
+  podSelector: { matchLabels: { app: rabbitmq } }
+  policyTypes: ["Ingress"]
+  ingress:
+  - from:
+    - podSelector: { matchLabels: { app: payment } }
+    - podSelector: { matchLabels: { app: inventory } }
+    - podSelector: { matchLabels: { app: notify } }
+    ports: [ { port: 5672, protocol: TCP } ]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-catalog-to-reco, namespace: bookstore }
+spec:
+  podSelector: { matchLabels: { app: recommendation } }
+  policyTypes: ["Ingress"]
+  ingress:
+  - from: [ { podSelector: { matchLabels: { app: catalog } } } ]
+    ports: [ { port: 50051, protocol: TCP } ]

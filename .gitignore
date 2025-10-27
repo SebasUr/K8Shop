@@ -40,3 +40,15 @@ microservices/payment-service/payment-service
 # Env files (keep committed service .envs if already tracked)
 .env.local
 .env.*.local
+
+# Terraform
+.terraform/
+**/.terraform/*
+*.tfstate
+*.tfstate.backup
+*.tfvars
+*.tfvars.json
+crash.log
+override.tf
+override.tf.json
+*.tfplan
