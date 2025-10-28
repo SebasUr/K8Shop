@@ -69,25 +69,27 @@ spec:
         - { name: data, mountPath: /var/lib/rabbitmq }
         - { name: cfg,  mountPath: /etc/rabbitmq }
         env:
-        - { name: RABBITMQ_USE_LONGNAME, value: "true" }
-        - { name: RABBITMQ_NODENAME, value: "rabbit@$(HOSTNAME)" }
-        - { name: K8S_HOSTNAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+        - { name: RABBITMQ_USE_LONGNAME, value: "false" }
         readinessProbe:
-          tcpSocket: { port: 5672 }
-          initialDelaySeconds: 10
+          exec:
+            command: ["rabbitmq-diagnostics", "-q", "ping"]
+          initialDelaySeconds: 40
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 6
         livenessProbe:
-          tcpSocket: { port: 5672 }
-          initialDelaySeconds: 20
+          exec:
+            command: ["rabbitmq-diagnostics", "-q", "check_running"]
+          initialDelaySeconds: 90
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6
       volumes:
+      - name: data
+        emptyDir: {}
       - name: cfg
         configMap:
           name: rabbitmq-conf
           items:
           - { key: rabbitmq.conf, path: rabbitmq.conf }
           - { key: definitions.json, path: definitions.json }
-  volumeClaimTemplates:
-  - metadata: { name: data }
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      storageClassName: gp3
-      resources: { requests: { storage: 10Gi } }

@@ -36,7 +36,7 @@ spec:
       containers:
       - name: catalog
         image: davidlondo/catalog-service:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
           name: http
