@@ -6,6 +6,7 @@ import cors from 'cors'
 import * as grpc from '@grpc/grpc-js'
 import * as protoLoader from '@grpc/proto-loader'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const app = express()
 app.use(express.json())
@@ -75,6 +76,7 @@ process.on('SIGTERM', shutdown)
 process.on('SIGINT', shutdown)
 
 // ----- gRPC server -----
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROTO_PATH = path.resolve(__dirname, '..', 'proto', 'catalog.proto')
 const pkgDef = protoLoader.loadSync(PROTO_PATH, { keepCase: true, longs: String, enums: String, arrays: true })
 const proto = grpc.loadPackageDefinition(pkgDef)

@@ -40,8 +40,8 @@ spec:
         - containerPort: 8000
           name: http
         envFrom:
-    - secretRef:
-      name: order-service-db
+        - secretRef:
+            name: order-service-db
         - configMapRef:
             name: runtime-config
         - configMapRef:
