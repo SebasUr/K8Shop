@@ -1,12 +1,12 @@
-# output "cluster_name" {
-#   value       = module.eks.cluster_name
-#   description = "EKS cluster name."
-# }
+output "cluster_name" {
+  value       = aws_eks_cluster.this.name
+  description = "EKS cluster name."
+}
 
-# output "cluster_endpoint" {
-#   value       = module.eks.cluster_endpoint
-#   description = "Public API endpoint for the EKS cluster."
-# }
+output "cluster_endpoint" {
+  value       = aws_eks_cluster.this.endpoint
+  description = "Public API endpoint for the EKS cluster."
+}
 
 output "private_subnets" {
   value       = module.vpc.private_subnets

@@ -1,6 +1,6 @@
 resource "null_resource" "k8s_bootstrap" {
   depends_on = [
- #   module.eks,
+    aws_eks_node_group.general,
     aws_db_instance.postgres,
     aws_elasticache_replication_group.redis,
     aws_dynamodb_table.inventory,

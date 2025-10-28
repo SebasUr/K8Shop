@@ -28,10 +28,26 @@ variable "cluster_name" {
   description = "Friendly name for the EKS cluster."
 }
 
+variable "admin_cidr_blocks" {
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+  description = "CIDR blocks allowed to reach the EKS public endpoint."
+}
+
+variable "cluster_iam_role_arn" {
+  type        = string
+  description = "Existing IAM role ARN to associate with the EKS control plane."
+}
+
 variable "node_type" {
   type        = string
   default     = "t3.large"
   description = "Instance type used by the EKS managed node group."
+}
+
+variable "node_iam_role_arn" {
+  type        = string
+  description = "Existing IAM role ARN used by the EKS managed node group."
 }
 
 variable "desired" {
