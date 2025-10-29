@@ -49,11 +49,41 @@ resource "aws_security_group" "fe" {
     security_groups = [aws_security_group.alb.id]
   }
 
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [module.vpc.vpc_cidr_block]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "bastion" {
+  name_prefix = "bookstore-bastion-"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.admin_cidr_blocks
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "bookstore-bastion"
   }
 }
 
@@ -77,54 +107,108 @@ resource "aws_launch_template" "fe" {
   name_prefix   = "bookstore-fe-"
   image_id      = data.aws_ami.amazon_linux.id
   instance_type = "t3.micro"
+  key_name      = var.bastion_key_name
   user_data = base64encode(<<EOF
-                #!/bin/bash
-        set -euo pipefail
+#!/bin/bash
+set -euo pipefail
 
-  dnf install -y nginx git nodejs npm
-                cat >/etc/nginx/nginx.conf <<'NGINX'
-                events {}
-                http {
-                log_format json escape=json '{ "time":"$time_iso8601","req":"$request","status":$status,"len":$bytes_sent,"rt":"$request_time","rid":"$request_id" }';
-                access_log /var/log/nginx/access.log json;
-                server {
-                        listen 8080;
-                        root /usr/share/nginx/html;
+dnf install -y nginx git nodejs npm
+cat >/etc/nginx/nginx.conf <<'NGINX'
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /var/run/nginx.pid;
 
-            location / { try_files $uri /index.html; add_header Cache-Control "public, max-age=300" always; }
-            location ~* \.(js|css|png|jpg|svg|woff2?)$ { add_header Cache-Control "public, max-age=31536000, immutable" always; try_files $uri =404; }
+events {
+  worker_connections 1024;
+}
 
-            location /api/catalog/ { proxy_pass ${local.catalog_api_base}/; }
-            location /api/cart/    { proxy_pass ${local.cart_api_base}/; }
-            location /api/orders/  { proxy_pass ${local.order_api_base}/; }
+http {
+  include       /etc/nginx/mime.types;
+  default_type  application/octet-stream;
 
-                        proxy_set_header X-Forwarded-For $remote_addr;
-                        proxy_set_header X-Request-Id $request_id;
-                        proxy_read_timeout 60s;
-                }
-                }
-                NGINX
-        rm -rf /usr/share/nginx/html/*
+  log_format json escape=json '{ "time":"$time_iso8601","req":"$request","status":$status,"len":$bytes_sent,"rt":"$request_time","rid":"$request_id" }';
+  access_log /var/log/nginx/access.log json;
 
-  rm -rf /opt/K8Shop
-  mkdir -p /opt
-  git clone https://github.com/SebasUr/K8Shop.git /opt/K8Shop
-        cd /opt/K8Shop/frontend
+  sendfile        on;
+  keepalive_timeout  65;
 
-        cat <<ENV > .env
-VITE_CATALOG_API=${local.catalog_api_base}
-VITE_CART_API=${local.cart_api_base}
-VITE_ORDER_API=${local.order_api_base}
+  server {
+    listen 8080;
+    root /usr/share/nginx/html;
+
+    types {
+      text/css css;
+      application/javascript js;
+      application/javascript mjs;
+      application/json json;
+      image/svg+xml svg;
+      application/font-woff2 woff2;
+    }
+
+    location / {
+      try_files $uri /index.html;
+      add_header Cache-Control "public, max-age=300" always;
+    }
+
+    location ~* \.(js|css|png|jpg|svg|woff2?)$ {
+      add_header Cache-Control "public, max-age=31536000, immutable" always;
+      try_files $uri =404;
+    }
+
+    location /api/catalog/ { proxy_pass ${local.catalog_api_base}/; }
+    location /api/cart/    { proxy_pass ${local.cart_api_base}/; }
+    location /api/orders/  { proxy_pass ${local.order_api_base}/; }
+
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Request-Id $request_id;
+    proxy_read_timeout 60s;
+  }
+}
+NGINX
+rm -rf /usr/share/nginx/html/*
+
+rm -rf /opt/K8Shop
+mkdir -p /opt
+git clone --branch infra_eks --single-branch https://github.com/SebasUr/K8Shop.git /opt/K8Shop
+cd /opt/K8Shop/frontend
+
+cat <<ENV > .env
+VITE_CATALOG_API=/api
+VITE_CART_API=/api
+VITE_ORDER_API=/api
 ENV
 
-        npm install
-        npm run build
+npm install
+npm run build
 
-        cp -r dist/* /usr/share/nginx/html/
-                systemctl enable --now nginx
-                EOF
+cp -r dist/* /usr/share/nginx/html/
+systemctl enable --now nginx
+EOF
   )
   vpc_security_group_ids = [aws_security_group.fe.id]
+}
+
+resource "aws_instance" "bastion" {
+  ami                         = data.aws_ami.amazon_linux.id
+  instance_type               = "t3.micro"
+  subnet_id                   = module.vpc.public_subnets[0]
+  associate_public_ip_address = true
+  vpc_security_group_ids      = [aws_security_group.bastion.id]
+  key_name                    = var.bastion_key_name
+
+  tags = {
+    Name = "bookstore-bastion"
+  }
+}
+
+resource "aws_security_group_rule" "fe_ssh_from_bastion" {
+  type                     = "ingress"
+  from_port                = 22
+  to_port                  = 22
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.fe.id
+  source_security_group_id = aws_security_group.bastion.id
 }
 
 resource "aws_lb" "public" {

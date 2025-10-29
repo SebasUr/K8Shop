@@ -97,3 +97,25 @@ variable "rabbitmq_password" {
   description = "Password used by application services when connecting to RabbitMQ inside the cluster."
   sensitive   = true
 }
+
+variable "create_bastion" {
+  type        = bool
+  default     = false
+  description = "When true, deploy a bastion EC2 instance in the public subnet for SSH access."
+}
+
+variable "bastion_public_key" {
+  type        = string
+  default     = ""
+  description = "SSH public key used for the bastion host. Required when create_bastion is true."
+  validation {
+    condition     = var.create_bastion == false || trim(var.bastion_public_key) != ""
+    error_message = "Provide a non-empty SSH public key when create_bastion is enabled."
+  }
+}
+
+variable "bastion_key_name" {
+  type        = string
+  default     = "k3s"
+  description = "Name of the existing AWS Key Pair to use for the bastion host. Required when create_bastion is true."
+}

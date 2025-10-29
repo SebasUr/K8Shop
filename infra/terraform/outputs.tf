@@ -53,3 +53,8 @@ output "cart_redis_url" {
   value       = local.cart_redis_url
   description = "Redis URL used by the cart-service."
 }
+
+output "bastion_public_ip" {
+  value       = aws_instance.bastion.public_ip
+  description = "Public IPv4 address of the bastion host."
+}
