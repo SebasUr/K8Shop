@@ -21,12 +21,18 @@
 -- Create required extensions once
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- Pass passwords into server-side context to avoid psql variable expansion inside DO $$ $$
+SET app.catalog_password        TO :'catalog_password';
+SET app.order_password          TO :'order_password';
+SET app.payment_password        TO :'payment_password';
+SET app.recommendation_password TO :'recommendation_password';
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'svc_catalog') THEN
-    EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', 'svc_catalog', :'catalog_password');
+    EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', 'svc_catalog', current_setting('app.catalog_password'));
   ELSE
-    EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', 'svc_catalog', :'catalog_password');
+    EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', 'svc_catalog', current_setting('app.catalog_password'));
   END IF;
   EXECUTE 'ALTER ROLE svc_catalog SET search_path TO catalog, public';
 END
@@ -35,9 +41,9 @@ $$;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'svc_order') THEN
-    EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', 'svc_order', :'order_password');
+    EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', 'svc_order', current_setting('app.order_password'));
   ELSE
-    EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', 'svc_order', :'order_password');
+    EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', 'svc_order', current_setting('app.order_password'));
   END IF;
   EXECUTE 'ALTER ROLE svc_order SET search_path TO "order", public';
 END
@@ -46,9 +52,9 @@ $$;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'svc_payment') THEN
-    EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', 'svc_payment', :'payment_password');
+    EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', 'svc_payment', current_setting('app.payment_password'));
   ELSE
-    EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', 'svc_payment', :'payment_password');
+    EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', 'svc_payment', current_setting('app.payment_password'));
   END IF;
   EXECUTE 'ALTER ROLE svc_payment SET search_path TO payment, public';
 END
@@ -57,9 +63,9 @@ $$;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'svc_recommendation') THEN
-    EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', 'svc_recommendation', :'recommendation_password');
+    EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', 'svc_recommendation', current_setting('app.recommendation_password'));
   ELSE
-    EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', 'svc_recommendation', :'recommendation_password');
+    EXECUTE format('ALTER ROLE %I WITH LOGIN PASSWORD %L', 'svc_recommendation', current_setting('app.recommendation_password'));
   END IF;
   EXECUTE 'ALTER ROLE svc_recommendation SET search_path TO recommendation, public';
 END

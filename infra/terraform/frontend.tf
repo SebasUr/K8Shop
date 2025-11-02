@@ -112,7 +112,10 @@ resource "aws_launch_template" "fe" {
 #!/bin/bash
 set -euo pipefail
 
-dnf install -y nginx git nodejs npm
+# Install Nginx and Git first
+dnf install -y nginx git
+
+# Configure Nginx
 cat >/etc/nginx/nginx.conf <<'NGINX'
 user nginx;
 worker_processes auto;
@@ -137,13 +140,9 @@ http {
     listen 8080;
     root /usr/share/nginx/html;
 
-    types {
-      text/css css;
-      application/javascript js;
-      application/javascript mjs;
-      application/json json;
-      image/svg+xml svg;
-      application/font-woff2 woff2;
+    location = /healthz {
+      add_header Content-Type text/plain always;
+      return 200 'ok';
     }
 
     location / {
@@ -156,18 +155,42 @@ http {
       try_files $uri =404;
     }
 
-    location /api/catalog/ { proxy_pass ${local.catalog_api_base}/; }
-    location /api/cart/    { proxy_pass ${local.cart_api_base}/; }
-    location /api/orders/  { proxy_pass ${local.order_api_base}/; }
+    location ~ ^/api/catalog/?(.*)$ {
+      proxy_pass ${local.catalog_api_base}/catalog/$1;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $remote_addr;
+      proxy_set_header X-Request-Id $request_id;
+    }
 
-    proxy_set_header X-Forwarded-For $remote_addr;
-    proxy_set_header X-Request-Id $request_id;
+    location ~ ^/api/cart/?(.*)$ {
+      proxy_pass ${local.cart_api_base}/cart/$1;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $remote_addr;
+      proxy_set_header X-Request-Id $request_id;
+    }
+
+    location ~ ^/api/orders/?(.*)$ {
+      proxy_pass ${local.order_api_base}/orders/$1;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $remote_addr;
+      proxy_set_header X-Request-Id $request_id;
+    }
+
     proxy_read_timeout 60s;
   }
 }
 NGINX
-rm -rf /usr/share/nginx/html/*
 
+# Start Nginx early with a placeholder so health checks pass
+rm -rf /usr/share/nginx/html/*
+echo '<!doctype html><html><head><meta charset="utf-8"><title>Bookstore</title></head><body><h1>Starting…</h1></body></html>' > /usr/share/nginx/html/index.html
+systemctl enable --now nginx
+
+# Install Node.js (Amazon Linux 2023)
+dnf module enable -y nodejs:20 || true
+dnf install -y nodejs npm
+
+# Fetch and build frontend
 rm -rf /opt/K8Shop
 mkdir -p /opt
 git clone --branch infra_eks --single-branch https://github.com/SebasUr/K8Shop.git /opt/K8Shop
@@ -183,7 +206,7 @@ npm install
 npm run build
 
 cp -r dist/* /usr/share/nginx/html/
-systemctl enable --now nginx
+systemctl reload nginx
 EOF
   )
   vpc_security_group_ids = [aws_security_group.fe.id]
@@ -225,7 +248,12 @@ resource "aws_lb_target_group" "fe" {
   vpc_id   = module.vpc.vpc_id
 
   health_check {
-    path = "/"
+    path                = "/healthz"
+    matcher             = "200-399"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 5
   }
 }
 
