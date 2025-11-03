@@ -16,10 +16,12 @@ fi
 
 items_json=$(cat <<'JSON'
 [
-  {"sku": "SKU-100", "stock": 120},
-  {"sku": "SKU-101", "stock": 45},
-  {"sku": "SKU-102", "stock": 300},
-  {"sku": "SKU-103", "stock": 25}
+  {"sku": "BOOK-001", "stock": 45},
+  {"sku": "BOOK-002", "stock": 32},
+  {"sku": "BOOK-003", "stock": 27},
+  {"sku": "BOOK-004", "stock": 60},
+  {"sku": "BOOK-005", "stock": 80},
+  {"sku": "BOOK-006", "stock": 22}
 ]
 JSON
 )

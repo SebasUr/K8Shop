@@ -20,7 +20,7 @@ output "vpc_id" {
 
 output "public_subnets" {
   value       = module.vpc.public_subnets
-  description = "Public subnet IDs used by the ALB layer."
+  description = "Public subnet IDs reachable from the internet (ELB/NLB)."
 }
 
 output "rds_endpoint" {
@@ -38,11 +38,6 @@ output "dynamodb_table" {
   description = "Name of the DynamoDB table backing inventory state."
 }
 
-output "frontend_url" {
-  value       = aws_lb.public.dns_name
-  description = "Public DNS name for the front-end ALB."
-}
-
 output "rabbitmq_url" {
   value       = local.rabbitmq_url
   sensitive   = true
@@ -52,9 +47,4 @@ output "rabbitmq_url" {
 output "cart_redis_url" {
   value       = local.cart_redis_url
   description = "Redis URL used by the cart-service."
-}
-
-output "bastion_public_ip" {
-  value       = aws_instance.bastion.public_ip
-  description = "Public IPv4 address of the bastion host."
 }

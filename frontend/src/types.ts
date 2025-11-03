@@ -26,8 +26,18 @@ export type CartSnapshot = {
   subtotal: number;
 };
 
+export type OrderLine = {
+  sku: string;
+  quantity: number;
+  price: number;
+  total: number;
+};
+
 export type OrderResponse = {
   orderId: string;
   status: string;
   total: number;
+  itemCount?: number;
+  createdAt?: string;
+  items?: OrderLine[];
 };

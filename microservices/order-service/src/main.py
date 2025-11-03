@@ -15,6 +15,7 @@ class Item(BaseModel):
     qty: int
     price: float
 
+
 class OrderReq(BaseModel):
     userId: str
     items: list[Item]
@@ -27,23 +28,53 @@ def create_order(req: OrderReq):
     # minimal validation
     if not req.items:
         raise HTTPException(status_code=400, detail="items required")
+
     order_id = str(uuid.uuid4())
-    total = sum([i.qty * i.price for i in req.items])
+    created_at = datetime.datetime.utcnow().isoformat()
+    raw_items = []
+    order_items = []
+    item_count = 0
+
+    for item in req.items:
+        raw = item.model_dump() if hasattr(item, "model_dump") else item.dict()
+        qty = int(raw.get("qty", raw.get("quantity", 0)))
+        price = round(float(raw.get("price", 0.0)), 2)
+        line_total = round(qty * price, 2)
+        item_count += qty
+        order_items.append({
+            "sku": raw.get("sku"),
+            "quantity": qty,
+            "price": price,
+            "total": line_total,
+        })
+        raw["total"] = line_total
+        raw["quantity"] = qty
+        raw_items.append(raw)
+
+    total = round(sum(line["total"] for line in order_items), 2)
+
     event = {
         "event": "order.created",
         "version": 1,
         "orderId": order_id,
         "userId": req.userId,
-        # Support both Pydantic v1 and v2
-        "items": [i.model_dump() if hasattr(i, "model_dump") else i.dict() for i in req.items],
+        "items": raw_items,
         "total": total,
-        "createdAt": datetime.datetime.utcnow().isoformat(),
+        "itemCount": item_count,
+        "createdAt": created_at,
         "messageId": str(uuid.uuid4()),
-        "correlationId": order_id
+        "correlationId": order_id,
     }
     # persist: in a real app you would save to DB (omitted here)
     publish_order_created(event)
-    return {"orderId": order_id, "status": "created", "total": total}
+    return {
+        "orderId": order_id,
+        "status": "created",
+        "total": total,
+        "itemCount": item_count,
+        "items": order_items,
+        "createdAt": created_at,
+    }
 
 # Allow running the service directly: `python main.py`
 if __name__ == "__main__":

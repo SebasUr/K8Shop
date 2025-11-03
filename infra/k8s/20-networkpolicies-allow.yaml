@@ -34,6 +34,7 @@ spec:
       - catalog-service
       - cart-service
       - order-service
+      - frontend
   policyTypes: ["Ingress"]
   ingress:
   - from:
@@ -42,6 +43,7 @@ spec:
     ports:
     - { port: 8080, protocol: TCP }
     - { port: 8000, protocol: TCP }
+    - { port: 80, protocol: TCP }
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

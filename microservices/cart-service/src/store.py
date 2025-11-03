@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 class InMemoryCartStore:
     def __init__(self):
         # { user_id: { product_id: {"quantity": int, "price": float} } }
-        self._data: Dict[str, Dict[str, Dict[str, Any]]]= {}
+        self._data: Dict[str, Dict[str, Dict[str, Any]]] = {}
 
     def get_cart(self, user_id: str) -> Dict[str, Dict[str, Any]]:
         return self._data.get(user_id, {}).copy()
@@ -37,6 +37,12 @@ class InMemoryCartStore:
 
     def clear(self, user_id: str):
         self._data.pop(user_id, None)
+
+    def ping(self) -> bool:
+        return True
+
+    def close(self) -> None:  # pragma: no cover - no-op for in-memory store
+        return
 
 
 class RedisCartStore:
@@ -93,3 +99,12 @@ class RedisCartStore:
 
     def clear(self, user_id: str):
         self.r.delete(self._key(user_id))
+
+    def ping(self) -> bool:
+        return bool(self.r.ping())
+
+    def close(self) -> None:
+        try:
+            self.r.close()
+        except Exception:
+            pass
