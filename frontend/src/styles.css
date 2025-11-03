@@ -109,6 +109,10 @@ body{
   display:block;
   color:#ffffffb3
 }
+.hero__status-note{
+  color:#ffffffcc;
+  margin-top:.1rem
+}
 .hero__hint{
   margin:0;
   font-size:.85rem;
@@ -143,6 +147,10 @@ body{
 }
 .btn:hover:not(:disabled){
   transform:translateY(-1px)
+}
+.btn--sm{
+  padding:.45rem 1rem;
+  font-size:.85rem
 }
 .btn--primary{
   background:linear-gradient(135deg,#2563eb,#7c3aed);
@@ -239,6 +247,10 @@ body{
 .chip--ok{
   background:#22c55e26;
   color:#15803d
+}
+.chip--neutral{
+  background:#0f172a14;
+  color:#475569
 }
 .chip--warn{
   background:#f871712e;
@@ -343,6 +355,12 @@ body{
   font-weight:600;
   color:#0f172a
 }
+.order__payment-note{
+  display:block;
+  margin-top:.35rem;
+  color:#b91c1c;
+  font-weight:500
+}
 .service-grid{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
@@ -360,6 +378,106 @@ body{
 }
 .service-card h3{
   margin:0
+}
+
+.recommendation-meta{
+  display:flex;
+  gap:1rem;
+  flex-wrap:wrap;
+  margin-bottom:1rem;
+  color:#64748b
+}
+
+.recommendation-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:1.25rem
+}
+
+.recommendation-card{
+  display:grid;
+  grid-template-columns:72px 1fr;
+  gap:1.25rem;
+  padding:1.4rem;
+  background:linear-gradient(180deg,#f9fafb,#fff);
+  border-radius:20px;
+  box-shadow:0 18px 36px rgba(15,23,42,.12);
+  border:1px solid rgba(148,163,184,.18)
+}
+
+.recommendation-card__media{
+  width:72px;
+  height:72px;
+  border-radius:18px;
+  background:linear-gradient(135deg,#2563eb,#7c3aed);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+  font-size:1.7rem;
+  font-weight:700;
+  box-shadow:0 12px 28px #4f46e51f
+}
+
+.recommendation-card__placeholder{
+  text-transform:uppercase
+}
+
+.recommendation-card__body{
+  display:flex;
+  flex-direction:column;
+  gap:.9rem
+}
+
+.recommendation-card__header{
+  display:flex;
+  flex-direction:column;
+  gap:.25rem
+}
+
+.recommendation-card__header h3{
+  margin:0;
+  font-size:1.1rem
+}
+
+.recommendation-card__header span{
+  color:#64748b;
+  font-size:.85rem
+}
+
+.recommendation-card__tags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.35rem
+}
+
+.recommendation-card__footer{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:.75rem
+}
+
+.recommendation-card__badges{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.35rem
+}
+
+.recommendation-card__price{
+  font-weight:700;
+  color:#1d4ed8
+}
+
+.recommendation-card__actions{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center
+}
+
+.recommendation-card__hint{
+  font-size:.85rem;
+  color:#64748b
 }
 .service-card p{
   margin:0;

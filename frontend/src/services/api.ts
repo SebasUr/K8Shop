@@ -1,4 +1,10 @@
-import { CatalogItems, CartSnapshot, OrderResponse } from "../types";
+import {
+  CatalogItems,
+  CartSnapshot,
+  OrderResponse,
+  RecommendationResponse,
+  ServiceHealth,
+} from "../types";
 
 const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 
@@ -54,4 +60,24 @@ export async function createOrder(baseUrl: string, userId: string, cart: CartSna
     body: JSON.stringify(payload),
   });
   return handleResponse<OrderResponse>(res);
+}
+
+export async function fetchRecommendations(
+  baseUrl: string,
+  params: { productId?: string; userId?: string; limit?: number; strategy?: string } = {}
+) {
+  const apiUrl = withBase(baseUrl, "/recommendations");
+  const search = new URLSearchParams();
+  if (params.productId) search.set("productId", params.productId);
+  if (params.userId) search.set("userId", params.userId);
+  if (typeof params.limit === "number") search.set("limit", String(params.limit));
+  if (params.strategy) search.set("strategy", params.strategy);
+  const url = search.toString() ? `${apiUrl}?${search.toString()}` : apiUrl;
+  const res = await fetch(url, { cache: "no-store" });
+  return handleResponse<RecommendationResponse>(res);
+}
+
+export async function fetchServiceHealth(url: string) {
+  const res = await fetch(url, { cache: "no-store" });
+  return handleResponse<ServiceHealth>(res);
 }

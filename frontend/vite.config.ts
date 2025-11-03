@@ -11,6 +11,10 @@ export default defineConfig(({ mode }) => {
         catalogApi: env.VITE_CATALOG_API ?? "",
         cartApi: env.VITE_CART_API ?? "",
         orderApi: env.VITE_ORDER_API ?? "",
+        recommendationApi: env.VITE_RECOMMENDATION_API ?? "",
+        inventoryApi: env.VITE_INVENTORY_API ?? "",
+        paymentApi: env.VITE_PAYMENT_API ?? "",
+        notificationApi: env.VITE_NOTIFICATION_API ?? "",
       }),
     },
     server: {

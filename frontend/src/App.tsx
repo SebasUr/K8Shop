@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CatalogItems, CartSnapshot, OrderResponse } from "./types";
-import { fetchCatalog, fetchCart, addCartItem, checkoutCart, createOrder } from "./services/api";
+import { CatalogItems, CartSnapshot, OrderResponse, RecommendationResponse } from "./types";
+import {
+  fetchCatalog,
+  fetchCart,
+  addCartItem,
+  checkoutCart,
+  createOrder,
+  fetchRecommendations,
+  fetchServiceHealth,
+} from "./services/api";
 
 const DEFAULT_USER = "demo-user";
 
@@ -24,29 +32,82 @@ export default function App() {
     const catalogApi = normalizeBase(__APP_CONFIG__.catalogApi || fallback.VITE_CATALOG_API || defaultBase, "catalog");
     const cartApi = normalizeBase(__APP_CONFIG__.cartApi || fallback.VITE_CART_API || defaultBase, "cart");
     const orderApi = normalizeBase(__APP_CONFIG__.orderApi || fallback.VITE_ORDER_API || defaultBase, "orders");
+    const recommendationApi = normalizeBase(
+      __APP_CONFIG__.recommendationApi || fallback.VITE_RECOMMENDATION_API || defaultBase,
+      "recommendations"
+    );
+    const inventoryApi = normalizeBase(
+      __APP_CONFIG__.inventoryApi || fallback.VITE_INVENTORY_API || defaultBase,
+      "inventory"
+    );
+    const paymentApi = normalizeBase(__APP_CONFIG__.paymentApi || fallback.VITE_PAYMENT_API || defaultBase, "payment");
+    const notificationApi = normalizeBase(
+      __APP_CONFIG__.notificationApi || fallback.VITE_NOTIFICATION_API || defaultBase,
+      "notification"
+    );
+
+    const buildPath = (base: string, path: string) => {
+      if (!base) return "";
+      return `${base.replace(/\/+$/, "")}${path}`;
+    };
 
     return {
       catalogApi,
       cartApi,
       orderApi,
+      recommendationApi,
+      inventoryApi,
+      paymentApi,
+      notificationApi,
       services: [
         {
           key: "catalog",
           name: "Catálogo",
-          endpoint: catalogApi,
+          endpoint: buildPath(catalogApi, "/catalog"),
+          healthUrl: buildPath(catalogApi, "/catalog/healthz"),
           description: "Node.js + PostgreSQL (catalog-service)",
         },
         {
           key: "cart",
           name: "Carrito",
-          endpoint: cartApi,
+          endpoint: buildPath(cartApi, "/cart"),
+          healthUrl: buildPath(cartApi, "/cart/healthz"),
           description: "FastAPI + Redis TLS (cart-service)",
         },
         {
           key: "orders",
           name: "Órdenes",
-          endpoint: orderApi,
+          endpoint: buildPath(orderApi, "/orders"),
+          healthUrl: buildPath(orderApi, "/orders/healthz"),
           description: "FastAPI + DynamoDB/RDS (order-service)",
+        },
+        {
+          key: "inventory",
+          name: "Inventario",
+          endpoint: buildPath(inventoryApi, "/inventory/apply"),
+          healthUrl: buildPath(inventoryApi, "/inventory/healthz"),
+          description: "FastAPI + DynamoDB (inventory-service)",
+        },
+        {
+          key: "payment",
+          name: "Pagos",
+          endpoint: buildPath(paymentApi, "/payments"),
+          healthUrl: buildPath(paymentApi, "/payment/healthz"),
+          description: "Go + RabbitMQ (payment-service)",
+        },
+        {
+          key: "notification",
+          name: "Notificaciones",
+          endpoint: buildPath(notificationApi, "/notification/notify"),
+          healthUrl: buildPath(notificationApi, "/notification/healthz"),
+          description: "Node.js + RabbitMQ (notification-service)",
+        },
+        {
+          key: "recommendation",
+          name: "Recomendaciones",
+          endpoint: buildPath(recommendationApi, "/recommendations"),
+          healthUrl: buildPath(recommendationApi, "/recommendations/healthz"),
+          description: "Go + gRPC Catalog (recommendation-service)",
         },
       ],
     };
@@ -55,11 +116,15 @@ export default function App() {
   const [catalog, setCatalog] = useState<CatalogItems | null>(null);
   const [cart, setCart] = useState<CartSnapshot | null>(null);
   const [orderResult, setOrderResult] = useState<OrderResponse | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendationResponse | null>(null);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [isLoadingCart, setIsLoadingCart] = useState(false);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [isOrdering, setIsOrdering] = useState(false);
+  const [isCheckingServices, setIsCheckingServices] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [serviceStatus, setServiceStatus] = useState<Record<string, { ok: boolean; message?: string }>>({});
 
   const showToast = useCallback((type: Toast["type"], message: string) => {
     setToast({ type, message });
@@ -67,6 +132,7 @@ export default function App() {
 
   const catalogRequestSeq = useRef(0);
   const cartRequestSeq = useRef(0);
+  const serviceStatusRequestSeq = useRef(0);
 
   const catalogLookup = useMemo(() => {
     const map = new Map<string, CatalogItems["items"][number]>();
@@ -76,6 +142,11 @@ export default function App() {
       }
     }
     return map;
+  }, [catalog]);
+
+  const highlightedProduct = useMemo(() => {
+    if (!catalog?.items?.length) return null;
+    return catalog.items[0];
   }, [catalog]);
 
   const cartLines = useMemo(() => {
@@ -117,6 +188,34 @@ export default function App() {
     if (Number.isNaN(date.getTime())) return null;
     return date.toLocaleString();
   }, [orderResult]);
+
+  const paymentStatus = useMemo(() => {
+    if (!orderResult) return null;
+    return orderResult.paymentStatus || orderResult.payment?.status || null;
+  }, [orderResult]);
+
+  const paymentStatusLabel = useMemo(() => {
+    if (!paymentStatus) return null;
+    if (paymentStatus.endsWith("succeeded")) return "Pago aprobado";
+    if (paymentStatus.endsWith("failed")) return "Pago rechazado";
+    if (paymentStatus.endsWith("error")) return "Error al procesar";
+    if (paymentStatus.endsWith("disabled") || paymentStatus.endsWith("skipped")) return "Pago omitido";
+    return paymentStatus;
+  }, [paymentStatus]);
+
+  const paymentChipClass = useMemo(() => {
+    if (!paymentStatus) return "chip--neutral";
+    if (paymentStatus.endsWith("succeeded")) return "chip--ok";
+    if (paymentStatus.endsWith("failed") || paymentStatus.endsWith("error")) return "chip--warn";
+    return "chip--neutral";
+  }, [paymentStatus]);
+
+  const paymentError = orderResult?.payment?.error ?? null;
+
+  const recommendationList = useMemo(() => {
+    if (!recommendations?.recommendations?.length) return [];
+    return recommendations.recommendations;
+  }, [recommendations]);
 
   useEffect(() => {
     if (!toast) return;
@@ -184,6 +283,81 @@ export default function App() {
     [config.cartApi, showToast]
   );
 
+  const refreshRecommendations = useCallback(
+    async (
+      options: { productId?: string; userId?: string; limit?: number; strategy?: string } = {},
+      silent = false
+    ) => {
+      if (!config.recommendationApi) return;
+      const { productId, userId, limit = 6, strategy } = options;
+      const effectiveProduct = productId || catalog?.items?.[0]?.sku;
+      if (!effectiveProduct) return;
+      setIsLoadingRecommendations(true);
+      try {
+        const data = await fetchRecommendations(config.recommendationApi, {
+          productId: effectiveProduct,
+          userId,
+          limit,
+          strategy: strategy || (userId ? "personalized" : "related"),
+        });
+        setRecommendations(data);
+        if (!silent) {
+          showToast("success", "Recomendaciones actualizadas");
+        }
+      } catch (err) {
+        const message = (err as Error).message;
+        setRecommendations(null);
+        setError(message);
+        showToast("error", message);
+      } finally {
+        setIsLoadingRecommendations(false);
+      }
+    },
+    [catalog?.items, config.recommendationApi, showToast]
+  );
+
+  const refreshServiceStatus = useCallback(
+    async (silent = false) => {
+      if (!config.services.length) return;
+      setIsCheckingServices(true);
+      const requestId = ++serviceStatusRequestSeq.current;
+      const nextStatus: Array<[string, { ok: boolean; message?: string }]> = [];
+      try {
+        await Promise.all(
+          config.services.map(async (svc) => {
+            if (!svc.endpoint) {
+              nextStatus.push([svc.key, { ok: false, message: "Sin endpoint" }]);
+              return;
+            }
+            if (!svc.healthUrl) {
+              nextStatus.push([svc.key, { ok: true }]);
+              return;
+            }
+            try {
+              const health = await fetchServiceHealth(svc.healthUrl);
+              const ok = typeof health.ok === "boolean" ? health.ok : true;
+              const details = typeof health.backend === "string" ? `Backend: ${health.backend}` : undefined;
+              nextStatus.push([svc.key, { ok, message: details }]);
+            } catch (err) {
+              const message = (err as Error).message || "Error consultando healthz";
+              nextStatus.push([svc.key, { ok: false, message }]);
+            }
+          })
+        );
+        if (requestId !== serviceStatusRequestSeq.current) return;
+        setServiceStatus(Object.fromEntries(nextStatus));
+        if (!silent) {
+          showToast("info", "Estado de servicios actualizado");
+        }
+      } finally {
+        if (requestId === serviceStatusRequestSeq.current) {
+          setIsCheckingServices(false);
+        }
+      }
+    },
+    [config.services, showToast]
+  );
+
   useEffect(() => {
     if (config.catalogApi) {
       refreshCatalog(true).catch(() => undefined);
@@ -191,7 +365,21 @@ export default function App() {
     if (config.cartApi) {
       refreshCart(true).catch(() => undefined);
     }
-  }, [config.catalogApi, config.cartApi, refreshCatalog, refreshCart]);
+    refreshServiceStatus(true).catch(() => undefined);
+  }, [config.catalogApi, config.cartApi, refreshCatalog, refreshCart, refreshServiceStatus]);
+
+  useEffect(() => {
+    if (!config.recommendationApi) return;
+    if (!catalog?.items?.length) return;
+    refreshRecommendations({ productId: catalog.items[0].sku, userId: DEFAULT_USER }, true).catch(() => undefined);
+  }, [catalog, config.recommendationApi, refreshRecommendations]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      refreshServiceStatus(true).catch(() => undefined);
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [refreshServiceStatus]);
 
   const handleAddItem = async (sku: string, price: number, title: string) => {
     if (!config.cartApi) return;
@@ -247,7 +435,28 @@ export default function App() {
     try {
       const order = await createOrder(config.orderApi, DEFAULT_USER, cart);
       setOrderResult(order);
-       showToast("success", `Orden ${order.orderId.slice(0, 8)} creada`);
+      const shortId = order.orderId.slice(0, 8);
+      const status = order.paymentStatus || order.payment?.status;
+      let toastType: Toast["type"] = "success";
+      let toastMessage = `Orden ${shortId} creada`;
+      if (status) {
+        if (status.endsWith("succeeded")) {
+          toastMessage = `Orden ${shortId} cobrada`;
+        } else if (status.endsWith("failed")) {
+          toastType = "error";
+          toastMessage = `Pago rechazado para orden ${shortId}`;
+        } else if (status.endsWith("error")) {
+          toastType = "error";
+          toastMessage = `Pago con errores para orden ${shortId}`;
+        } else if (status.endsWith("disabled") || status.endsWith("skipped")) {
+          toastType = "info";
+          toastMessage = `Orden ${shortId} creada (pago omitido)`;
+        }
+      }
+      if (order.payment?.error) {
+        toastMessage = `${toastMessage}. ${order.payment.error}`;
+      }
+      showToast(toastType, toastMessage);
     } catch (err) {
       const message = (err as Error).message;
       setError(message);
@@ -286,6 +495,14 @@ export default function App() {
               >
                 {isLoadingCart ? "Sincronizando carrito" : "Sincronizar carrito"}
               </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => refreshServiceStatus()}
+                disabled={isCheckingServices}
+              >
+                {isCheckingServices ? "Verificando servicios" : "Verificar servicios"}
+              </button>
             </div>
             <dl className="hero__meta">
               <div>
@@ -307,10 +524,19 @@ export default function App() {
             <ul className="hero__status">
               {config.services.map((svc) => (
                 <li key={svc.key}>
-                  <span className={`dot ${svc.endpoint ? "dot--ok" : "dot--warn"}`} />
+                  <span className={`dot ${serviceStatus[svc.key]?.ok ? "dot--ok" : "dot--warn"}`} />
                   <div>
                     <strong>{svc.name}</strong>
                     <small>{svc.endpoint || "Endpoint no configurado"}</small>
+                    <small className="hero__status-note">
+                      {svc.endpoint
+                        ? serviceStatus[svc.key]
+                          ? serviceStatus[svc.key]?.ok
+                            ? serviceStatus[svc.key]?.message || "Operativo"
+                            : serviceStatus[svc.key]?.message || "Error"
+                          : "Sin verificación"
+                        : "Sin endpoint"}
+                    </small>
                   </div>
                 </li>
               ))}
@@ -490,6 +716,17 @@ export default function App() {
                       <dt>Referencia</dt>
                       <dd>{orderResult.orderId}</dd>
                     </div>
+                    {paymentStatus && (
+                      <div>
+                        <dt>Pago</dt>
+                        <dd>
+                          <span className={`chip ${paymentChipClass}`}>
+                            {paymentStatusLabel ?? paymentStatus}
+                          </span>
+                          {paymentError && <small className="order__payment-note">{paymentError}</small>}
+                        </dd>
+                      </div>
+                    )}
                   </dl>
                 </div>
               ) : (
@@ -497,6 +734,106 @@ export default function App() {
               )}
             </article>
           </div>
+        </section>
+
+        <section className="section">
+          <div className="section__head">
+            <div>
+              <h2>Motor de recomendaciones</h2>
+              <p>Resultados en vivo del microservicio recommendation-service.</p>
+            </div>
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() =>
+                refreshRecommendations(
+                  { productId: highlightedProduct?.sku, userId: DEFAULT_USER, strategy: "related" },
+                  false
+                )
+              }
+              disabled={
+                isLoadingRecommendations || !config.recommendationApi || (!highlightedProduct && !catalog?.items?.length)
+              }
+            >
+              {isLoadingRecommendations ? "Cargando recomendaciones" : "Actualizar recomendaciones"}
+            </button>
+          </div>
+
+          {!config.recommendationApi ? (
+            <div className="empty">Configura VITE_RECOMMENDATION_API para habilitar este panel.</div>
+          ) : isLoadingRecommendations && !recommendationList.length ? (
+            <div className="skeleton">Consultando motor de recomendaciones...</div>
+          ) : recommendationList.length ? (
+            <>
+              <div className="recommendation-meta">
+                {highlightedProduct && (
+                  <span>
+                    Basado en <strong>{highlightedProduct.title}</strong> (SKU {highlightedProduct.sku})
+                  </span>
+                )}
+                {recommendations?.strategy && <span>Estrategia: {recommendations.strategy}</span>}
+              </div>
+              <div className="recommendation-grid">
+                {recommendationList.map((item) => {
+                  const match = catalogLookup.get(item.id);
+                  const displayTitle = match?.title ?? item.id;
+                  const canAddToCart = Boolean(match);
+                  const productTags = match?.tags?.slice(0, 3) ?? [];
+                  const placeholder = displayTitle.trim().charAt(0).toUpperCase() || "☆";
+                  const priceLabel = match ? `$${match.price.toFixed(2)}` : null;
+                  const handleAdd = () => {
+                    if (!match) return;
+                    handleAddItem(match.sku, match.price, match.title);
+                  };
+                  return (
+                    <article key={item.id} className="recommendation-card">
+                      <div className="recommendation-card__media">
+                        <span className="recommendation-card__placeholder">{placeholder}</span>
+                      </div>
+                      <div className="recommendation-card__body">
+                        <div className="recommendation-card__header">
+                          <h3>{displayTitle}</h3>
+                          <span>{match ? `SKU ${match.sku}` : `ID ${item.id}`}</span>
+                        </div>
+                        {productTags.length > 0 && (
+                          <div className="recommendation-card__tags">
+                            {productTags.map((tag) => (
+                              <span key={tag} className="chip">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="recommendation-card__footer">
+                          <div className="recommendation-card__badges">
+                            <span className="chip chip--neutral">Score {item.score.toFixed(2)}</span>
+                            {match && <span className="chip chip--ok">En catálogo</span>}
+                          </div>
+                          {priceLabel && <span className="recommendation-card__price">{priceLabel}</span>}
+                        </div>
+                        <div className="recommendation-card__actions">
+                          {canAddToCart ? (
+                            <button
+                              type="button"
+                              className="btn btn--primary btn--sm"
+                              onClick={handleAdd}
+                              disabled={isLoadingCart || !config.cartApi}
+                            >
+                              Añadir al carrito
+                            </button>
+                          ) : (
+                            <span className="recommendation-card__hint">Sugerencia basada en afinidad.</span>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="empty">Sin recomendaciones disponibles todavía.</div>
+          )}
         </section>
 
         <section className="section">

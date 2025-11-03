@@ -87,3 +87,21 @@ spec:
       target:
         type: Utilization
         averageUtilization: 60
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: bookstore
+  labels:
+    app: payment-service
+spec:
+  selector:
+    app: payment-service
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    appProtocol: http
+  type: ClusterIP
