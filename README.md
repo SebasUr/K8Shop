@@ -43,16 +43,16 @@ The application serves end users through a React-based web frontend that communi
 
 ### Microservices
 
-| Service | Technology | Container Port | Data Store | Communication | Purpose |
+| Service | Technology | Data Store | Communication | Purpose |
 |---------|------------|----------------|------------|---------------|---------|
-| **frontend** | React + Vite + Nginx | 80 | None | HTTP REST → Services | Web user interface for the bookstore |
-| **catalog-service** | Node.js + Express | 8080 (HTTP)<br/>50051 (gRPC) | PostgreSQL (schema: `catalog`) | HTTP REST, gRPC, RabbitMQ (producer) | Product catalog and management |
-| **inventory-service** | Python + FastAPI | 8080 | DynamoDB (`bookstore-inventory`) | HTTP REST, RabbitMQ (consumer/producer) | Stock level management and tracking |
-| **cart-service** | Python + FastAPI | 8080 | Redis (ElastiCache) | HTTP REST | Shopping cart session management |
-| **order-service** | Python + FastAPI | 8080 | PostgreSQL (schema: `order`) | HTTP REST, RabbitMQ (producer/consumer) | Order processing and management |
-| **payment-service** | Go (net/http) | 8080 | PostgreSQL (schema: `payment`) | HTTP REST, RabbitMQ (consumer/producer) | Payment transaction processing |
-| **notification-service** | Node.js + Express | 8080 | None | RabbitMQ (consumer only) | Email/SMS notification dispatch |
-| **recommendation-service** | Go (net/http) | 8080 | None (queries catalog via gRPC) | HTTP REST, gRPC (client) | Product recommendation engine |
+| **frontend** | React + Vite + Nginx | None | HTTP REST → Services | Web user interface for the bookstore |
+| **catalog-service** | Node.js + Express |  PostgreSQL (schema: `catalog`) | HTTP REST, gRPC, RabbitMQ (producer) | Product catalog and management |
+| **inventory-service** | Python + FastAPI | DynamoDB (`bookstore-inventory`) | HTTP REST, RabbitMQ (consumer/producer) | Stock level management and tracking |
+| **cart-service** | Python + FastAPI |  Redis (ElastiCache) | HTTP REST | Shopping cart session management |
+| **order-service** | Python + FastAPI |  PostgreSQL (schema: `order`) | HTTP REST, RabbitMQ (producer/consumer) | Order processing and management |
+| **payment-service** | Go (net/http) | PostgreSQL (schema: `payment`) | HTTP REST, RabbitMQ (consumer/producer) | Payment transaction processing |
+| **notification-service** | Node.js + Express | None | RabbitMQ (consumer only) | Email/SMS notification dispatch |
+| **recommendation-service** | Go (net/http) | None (queries catalog via gRPC) | HTTP REST, gRPC (client) | Product recommendation engine |
 
 ### Infrastructure
 - **Container Orchestration**: Kubernetes (EKS on AWS)
