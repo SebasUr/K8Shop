@@ -14,7 +14,6 @@ The system is designed to showcase cloud-native patterns including:
 The application serves end users through a React-based web frontend that communicates with backend microservices via HTTP and gRPC APIs.
 
 ![Architecture Overview](docs/general_p.jpg)
-![System Diagram](docs/image-8.png)
 
 ## Table of Contents
 
