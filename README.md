@@ -2,6 +2,9 @@
 
 K8Shop is a demonstration e-commerce platform that implements a complete bookstore with product catalog, shopping cart, order processing, payment handling, inventory management, and customer notifications. Is intended for the course Distributed Systems in EAFIT University, Medellín Antioquia by David Londoño Palacio and Sebastián Uribe.
 
+# VIDEO SHOWCASE
+https://youtu.be/wWZDEDBoJn0
+
 The system is designed to showcase cloud-native patterns including:
 
 - **Microservices decomposition** with domain-driven service boundaries
