@@ -44,12 +44,12 @@ The application serves end users through a React-based web frontend that communi
 ### Microservices
 
 | Service | Technology | Data Store | Communication | Purpose |
-|---------|------------|----------------|------------|---------------|---------|
+|----------|-------------|-------------|----------------|----------|
 | **frontend** | React + Vite + Nginx | None | HTTP REST → Services | Web user interface for the bookstore |
-| **catalog-service** | Node.js + Express |  PostgreSQL (schema: `catalog`) | HTTP REST, gRPC, RabbitMQ (producer) | Product catalog and management |
+| **catalog-service** | Node.js + Express | PostgreSQL (schema: `catalog`) | HTTP REST, gRPC, RabbitMQ (producer) | Product catalog and management |
 | **inventory-service** | Python + FastAPI | DynamoDB (`bookstore-inventory`) | HTTP REST, RabbitMQ (consumer/producer) | Stock level management and tracking |
-| **cart-service** | Python + FastAPI |  Redis (ElastiCache) | HTTP REST | Shopping cart session management |
-| **order-service** | Python + FastAPI |  PostgreSQL (schema: `order`) | HTTP REST, RabbitMQ (producer/consumer) | Order processing and management |
+| **cart-service** | Python + FastAPI | Redis (ElastiCache) | HTTP REST | Shopping cart session management |
+| **order-service** | Python + FastAPI | PostgreSQL (schema: `order`) | HTTP REST, RabbitMQ (producer/consumer) | Order processing and management |
 | **payment-service** | Go (net/http) | PostgreSQL (schema: `payment`) | HTTP REST, RabbitMQ (consumer/producer) | Payment transaction processing |
 | **notification-service** | Node.js + Express | None | RabbitMQ (consumer only) | Email/SMS notification dispatch |
 | **recommendation-service** | Go (net/http) | None (queries catalog via gRPC) | HTTP REST, gRPC (client) | Product recommendation engine |
